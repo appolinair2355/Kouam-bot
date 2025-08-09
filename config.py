@@ -12,8 +12,11 @@ class Config:
     def __init__(self):
         self.BOT_TOKEN = self._get_bot_token()
         # Configuration webhook pour développement et production
-        repl_url = f'https://{os.getenv("REPL_SLUG", "")}.{os.getenv("REPL_OWNER", "")}.repl.co'
-        self.WEBHOOK_URL = os.getenv('WEBHOOK_URL', repl_url)
+        if os.getenv('RENDER'):
+            default_webhook = "https://kouam-bot.onrender.com"
+        else:
+            default_webhook = f'https://{os.getenv("REPL_SLUG", "")}.{os.getenv("REPL_OWNER", "")}.repl.co'
+        self.WEBHOOK_URL = os.getenv('WEBHOOK_URL', default_webhook)
         logger.info(f"Webhook URL configuré: {self.WEBHOOK_URL}")
         # Port pour render.com - utilise PORT env ou 10000 par défaut
         self.PORT = int(os.getenv('PORT', 10000))
