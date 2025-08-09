@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: telegram-bot-joker
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT main:app
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: PORT
+        value: 10000
+      - key: DEBUG
+        value: false
