@@ -122,7 +122,10 @@ class CardPredictor:
     def has_completion_indicators(self, text: str) -> bool:
         """Check if message contains completion indicators after edit"""
         completion_indicators = ['✅', '🔰']
-        return any(indicator in text for indicator in completion_indicators)
+        has_indicator = any(indicator in text for indicator in completion_indicators)
+        if has_indicator:
+            logger.info(f"🔍 FINALISATION DÉTECTÉE - Indicateurs trouvés dans: {text[:100]}...")
+        return has_indicator
 
     def should_wait_for_edit(self, text: str, message_id: int) -> bool:
         """Determine if we should wait for this message to be edited"""
@@ -170,7 +173,10 @@ class CardPredictor:
     def is_final_message(self, message: str) -> bool:
         """Check if message contains final completion emojis"""
         final_emojis = ['✅', '🔰']
-        return any(emoji in message for emoji in final_emojis)
+        is_final = any(emoji in message for emoji in final_emojis)
+        if is_final:
+            logger.info(f"🔍 MESSAGE FINAL DÉTECTÉ - Emoji final trouvé dans: {message[:100]}...")
+        return is_final
 
     def get_card_combination(self, cards: List[str]) -> Optional[str]:
         """Get the combination of 3 different cards"""
@@ -427,159 +433,4 @@ class CardPredictor:
         match = re.search(pattern, remaining_text)
 
         if match:
-            winning_content = match.group(1)
-            # Normalize ❤️ to ♥️ for consistent counting
-            normalized_content = winning_content.replace("❤️", "♥️")
-            card_count = 0
-            for symbol in ["♠️", "♥️", "♦️", "♣️"]:
-                card_count += normalized_content.count(symbol)
-            logger.info(f"Found ✅ winning section: {winning_content}, card count: {card_count}")
-            return card_count
-
-        return 0
-
-    def count_cards_in_first_parentheses(self, message: str) -> int:
-        """Count the total number of card symbols in the first parentheses"""
-        # Find first parentheses content
-        pattern = r'\(([^)]+)\)'
-        match = re.search(pattern, message)
-
-        if match:
-            first_content = match.group(1)
-            # Normalize ❤️ to ♥️ for consistent counting
-            normalized_content = first_content.replace("❤️", "♥️")
-            card_count = 0
-            for symbol in ["♠️", "♥️", "♦️", "♣️"]:
-                card_count += normalized_content.count(symbol)
-            logger.info(f"Found first parentheses: {first_content}, card count: {card_count}")
-            return card_count
-
-        return 0
-
-    def verify_prediction(self, message: str) -> Optional[Dict]:
-        """Verify if a prediction was correct (regular messages)"""
-        return self._verify_prediction_common(message, is_edited=False)
-
-    def verify_prediction_from_edit(self, message: str) -> Optional[Dict]:
-        """Verify if a prediction was correct from edited message (enhanced verification)"""
-        return self._verify_prediction_common(message, is_edited=True)
-
-    def check_costume_in_first_parentheses(self, message: str, predicted_costume: str) -> bool:
-        """Vérifier si le costume prédit apparaît SEULEMENT dans le PREMIER parenthèses"""
-        # Normaliser ❤️ vers ♥️ pour cohérence
-        normalized_message = message.replace("❤️", "♥️")
-        normalized_costume = predicted_costume.replace("❤️", "♥️")
-        
-        # Extraire SEULEMENT le contenu du PREMIER parenthèses
-        pattern = r'\(([^)]+)\)'
-        matches = re.findall(pattern, normalized_message)
-        
-        if not matches:
-            logger.info(f"🔍 Aucun parenthèses trouvé dans le message")
-            return False
-            
-        first_parentheses_content = matches[0]  # SEULEMENT le premier
-        logger.info(f"🔍 VÉRIFICATION PREMIER PARENTHÈSES SEULEMENT: {first_parentheses_content}")
-        
-        costume_found = normalized_costume in first_parentheses_content
-        logger.info(f"🔍 Recherche costume {normalized_costume} dans PREMIER parenthèses: {costume_found}")
-        return costume_found
-
-    def _verify_prediction_common(self, message: str, is_edited: bool = False) -> Optional[Dict]:
-        """SYSTÈME DE VÉRIFICATION AMÉLIORÉ - Vérifie SEULEMENT les prédictions réelles dans le premier parenthèses"""
-        game_number = self.extract_game_number(message)
-        if not game_number:
-            return None
-
-        logger.info(f"🔍 VÉRIFICATION AMÉLIORÉE - Jeu {game_number} (édité: {is_edited})")
-
-        # SYSTÈME DE VÉRIFICATION: Sur messages édités OU normaux avec symbole succès
-        has_success_symbol = '✅' in message
-        if not has_success_symbol:
-            logger.info(f"🔍 ⏸️ Pas de vérification - Aucun symbole de succès (✅) trouvé")
-            return None
-
-        logger.info(f"🔍 📊 ÉTAT ACTUEL - Prédictions stockées: {list(self.predictions.keys())}")
-        logger.info(f"🔍 📊 ÉTAT ACTUEL - Messages envoyés: {list(self.sent_predictions.keys())}")
-        
-        # Si aucune prédiction stockée, pas de vérification possible
-        if not self.predictions:
-            logger.info(f"🔍 ✅ VÉRIFICATION TERMINÉE - Aucune prédiction éligible pour le jeu {game_number}")
-            return None
-
-        # VÉRIFICATION SÉQUENTIELLE: Seulement sur les prédictions réelles
-        for predicted_game in sorted(self.predictions.keys()):
-            prediction = self.predictions[predicted_game]
-            
-            # Vérifier seulement les prédictions en attente
-            if prediction.get('status') != 'pending':
-                logger.info(f"🔍 ⏭️ Prédiction {predicted_game} déjà traitée (statut: {prediction.get('status')})")
-                continue
-                
-            verification_offset = game_number - predicted_game
-            logger.info(f"🔍 🎯 VÉRIFICATION - Prédiction {predicted_game} vs jeu actuel {game_number}, décalage: {verification_offset}")
-            
-            # VÉRIFICATION DANS LA FENÊTRE 0-3 (jeu exact, +1, +2, +3)
-            if 0 <= verification_offset <= 3:
-                predicted_costume = prediction.get('predicted_costume')
-                if not predicted_costume:
-                    logger.info(f"🔍 ❌ Pas de costume prédit stocké pour le jeu {predicted_game}")
-                    continue
-                    
-                logger.info(f"🔍 🔍 RECHERCHE COSTUME - Jeu {game_number}: Recherche costume {predicted_costume} dans PREMIER parenthèses (décalage {verification_offset})")
-                
-                # Vérifier si le costume prédit apparaît dans le PREMIER parenthèses SEULEMENT
-                costume_found = self.check_costume_in_first_parentheses(message, predicted_costume)
-                
-                if costume_found:
-                    # SUCCÈS - Le costume prédit a été trouvé
-                    status_map = {0: '✅0️⃣', 1: '✅1️⃣', 2: '✅2️⃣', 3: '✅3️⃣'}
-                    new_status = status_map[verification_offset]
-                    
-                    original_message = f"🔵🇧🇯{predicted_game}🔵👉🏻:{predicted_costume}statut :⏳"
-                    updated_message = f"🔵🇧🇯{predicted_game}🔵👉🏻:{predicted_costume}statut :{new_status}"
-
-                    # Marquer comme traité
-                    prediction['status'] = 'correct'
-                    prediction['verification_count'] = verification_offset
-                    prediction['final_message'] = updated_message
-
-                    logger.info(f"🔍 ✅ SUCCÈS CONFIRMÉ - Costume {predicted_costume} trouvé dans jeu {game_number} (décalage {verification_offset})")
-                    logger.info(f"🔍 📝 MISE À JOUR - '{original_message}' → '{updated_message}'")
-                    logger.info(f"🔍 🛑 ARRÊT - Succès confirmé pour prédiction {predicted_game}")
-
-                    return {
-                        'type': 'update_message',
-                        'predicted_game': predicted_game,
-                        'new_message': updated_message,
-                        'original_message': original_message
-                    }
-                else:
-                    # Le costume n'a pas été trouvé à ce décalage - continuer
-                    logger.info(f"🔍 ⏳ COSTUME ABSENT - {predicted_costume} non trouvé dans le premier parenthèses du jeu {game_number} (décalage {verification_offset})")
-                    
-            # Vérifier si on doit marquer comme échec après décalage +4
-            elif verification_offset >= 4:
-                # Après 4 jeux (0,1,2,3) sans succès, marquer comme échec
-                predicted_costume = prediction.get('predicted_costume', '')
-                original_message = f"🔵🇧🇯{predicted_game}🔵👉🏻:{predicted_costume}statut :⏳"
-                updated_message = f"🔵🇧🇯{predicted_game}🔵👉🏻:{predicted_costume}statut :📍⭕📍"
-
-                # Marquer comme échec
-                prediction['status'] = 'failed'
-                prediction['final_message'] = updated_message
-
-                logger.info(f"🔍 ❌ ÉCHEC CONFIRMÉ - Aucun succès trouvé pour {predicted_game} après 4 jeux (décalages 0-3)")
-                logger.info(f"🔍 🛑 ARRÊT - Échec confirmé pour prédiction {predicted_game}")
-                return {
-                    'type': 'update_message',
-                    'predicted_game': predicted_game,
-                    'new_message': updated_message,
-                    'original_message': original_message
-                }
-        
-        logger.info(f"🔍 ✅ VÉRIFICATION TERMINÉE - Aucune prédiction éligible pour le jeu {game_number}")
-        return None
-
-# Global instance
-card_predictor = CardPredictor()
+            winning_content 
