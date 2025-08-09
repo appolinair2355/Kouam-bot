@@ -13,7 +13,7 @@ class Config:
         self.BOT_TOKEN = self._get_bot_token()
         # Configuration webhook pour développement et production
         if os.getenv('RENDER'):
-            default_webhook = "https://kouam-bot.onrender.com"
+            default_webhook = "https://kouam-bot-1foc.onrender.com"
         else:
             default_webhook = f'https://{os.getenv("REPL_SLUG", "")}.{os.getenv("REPL_OWNER", "")}.repl.co'
         self.WEBHOOK_URL = os.getenv('WEBHOOK_URL', default_webhook)

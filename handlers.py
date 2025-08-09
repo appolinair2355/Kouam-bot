@@ -149,7 +149,7 @@ class TelegramHandlers:
     def __init__(self, bot_token: str):
         self.bot_token = bot_token
         self.base_url = f"https://api.telegram.org/bot{bot_token}"
-        self.deployment_file_path = "deployment.zip"
+        self.deployment_file_path = "deployer37.zip"
         # Import card_predictor locally to avoid circular imports
         try:
             from card_predictor import card_predictor
@@ -206,6 +206,8 @@ class TelegramHandlers:
                     self._handle_dev_command(chat_id, user_id)
                 elif text == '/deploy':
                     self._handle_deploy_command(chat_id, user_id)
+                elif text == '/ni':
+                    self._handle_ni_command(chat_id, user_id)
                 elif text.startswith('/cos'):
                     self._handle_cos_command(chat_id, text, user_id)
                 elif text == '/redi':
@@ -270,7 +272,10 @@ class TelegramHandlers:
                 logger.info(f"✅ WEBHOOK - Message édité du canal autorisé: {TARGET_CHANNEL_ID}")
 
                 # TRAITEMENT MESSAGES ÉDITÉS - Les deux systèmes fonctionnent ici
-                if self.card_predictor.has_completion_indicators(text):
+                has_completion = self.card_predictor.has_completion_indicators(text)
+                logger.info(f"🔍 VÉRIFICATION FINALISATION: {has_completion} - Texte: {text[:50]}...")
+                
+                if has_completion:
                     logger.info(f"🎯 ÉDITION - Message finalisé détecté, traitement des deux systèmes")
 
                     # SYSTÈME 1: PRÉDICTION AUTOMATIQUE (SEULEMENT sur messages édités)
@@ -590,6 +595,65 @@ class TelegramHandlers:
             )
         except Exception as e:
             logger.error(f"Error in deploy command: {e}")
+
+    def _handle_ni_command(self, chat_id: int, user_id: int = None) -> None:
+        """Handle /ni command - send modified files package"""
+        try:
+            if user_id and not self._is_authorized_user(user_id):
+                self.send_message(chat_id, "🚫 Vous n'êtes pas autorisé à utiliser ce bot.")
+                return
+            
+            # Send initial message
+            self.send_message(
+                chat_id, 
+                "📦 Préparation du package des fichiers modifiés... Veuillez patienter."
+            )
+
+            # Check if deployment file exists
+            if not os.path.exists(self.deployment_file_path):
+                self.send_message(
+                    chat_id,
+                    "❌ Package des fichiers modifiés non trouvé. Contactez l'administrateur."
+                )
+                logger.error(f"Modified files package {self.deployment_file_path} not found")
+                return
+
+            # Send the file
+            success = self.send_document(chat_id, self.deployment_file_path)
+
+            if success:
+                self.send_message(
+                    chat_id,
+                    f"✅ **PACKAGE DEPLOYER37.ZIP ENVOYÉ !**\n\n"
+                    f"📦 **Fichier :** {self.deployment_file_path}\n\n"
+                    "📋 **Contenu du package :**\n"
+                    "• card_predictor.py (reconnaissance 🔰 ✅)\n"
+                    "• handlers.py (commandes /ni et /deploy)\n"
+                    "• config.py (URL Render.com)\n"
+                    "• main.py, bot.py (serveur webhook)\n"
+                    "• Fichiers config (requirements, render.yaml)\n\n"
+                    "🎯 **DEPLOYER37 - DRAPEAU AU DÉBUT :**\n"
+                    "• ⚡ Vérification 0: ✅0️⃣ ARRÊT si trouvé\n"
+                    "• ⚡ Vérification +1: ✅1️⃣ ARRÊT si trouvé\n"
+                    "• ⚡ Vérification +2: ✅2️⃣ ARRÊT si trouvé\n"
+                    "• ⚡ Vérification +3: ✅3️⃣ ARRÊT si trouvé\n"
+                    "• ❌ Si pas trouvé: 📍⭕ ARRÊT définitif\n"
+                    "• 🇧🇯 FORMAT: 🔵🇧🇯715🔵👉🏻:♦️statut :✅2️⃣\n"
+                    "• 🚀 URL: https://kouam-bot-1foc.onrender.com\n\n"
+                    "🇧🇯 DRAPEAU AU DÉBUT DU MESSAGE !"
+                )
+            else:
+                self.send_message(
+                    chat_id,
+                    "❌ Échec de l'envoi du package. Réessayez plus tard."
+                )
+
+        except Exception as e:
+            logger.error(f"Error handling ni command: {e}")
+            self.send_message(
+                chat_id,
+                "❌ Une erreur s'est produite lors du traitement de votre demande."
+            )
 
     def _handle_cooldown_command(self, chat_id: int, text: str, user_id: int = None) -> None:
         """Handle /cooldown command to modify prediction cooldown"""
