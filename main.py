@@ -64,6 +64,7 @@ def setup_webhook():
             full_webhook_url = f"{webhook_url}/webhook"
             logger.info(f"🔗 Configuration webhook: {full_webhook_url}")
             
+            # Configure webhook for Render.com with your specific URL
             success = bot.set_webhook(full_webhook_url)
             if success:
                 logger.info(f"✅ Webhook configuré avec succès: {full_webhook_url}")
